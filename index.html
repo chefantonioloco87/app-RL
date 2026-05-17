@@ -128,19 +128,58 @@ let state = {mode:"all", type:null, category:null, placeholder:false};
 totalCountEl.textContent = ITEMS.length;
 
 function escapeRegExp(str) { return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function normalizeText(value){
+  return (value || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+function rawTerms(query){
+  return (query || "").trim().split(/\s+/).filter(Boolean);
+}
+function normTerms(query){
+  return rawTerms(query).map(t => normalizeText(t)).filter(Boolean);
+}
+function termVariants(term){
+  const variants = new Set([term]);
+  if(term.length >= 4){
+    if(term.endsWith("e")) variants.add(term.slice(0,-1) + "i");
+    if(term.endsWith("i")) variants.add(term.slice(0,-1) + "e");
+    if(term.endsWith("a")) variants.add(term.slice(0,-1) + "e");
+    if(term.endsWith("o")) variants.add(term.slice(0,-1) + "i");
+  }
+  return Array.from(variants);
+}
+function itemMatchesQuery(item, query){
+  const terms = normTerms(query);
+  if(terms.length === 0) return true;
+  const hay = normalizeText(`${item.title || ""} ${item.text || ""} ${item.source_pdf || ""}`);
+  return terms.every(term => termVariants(term).some(v => hay.includes(v)));
+}
 function highlight(text,q) {
-  if(!q) return text;
-  const safe = escapeRegExp(q);
-  return text.replace(new RegExp("(" + safe + ")","ig"), "<mark>$1</mark>");
+  const tokens = rawTerms(q);
+  if(tokens.length === 0) return text;
+  let out = text;
+  for(const token of tokens){
+    const safe = escapeRegExp(token);
+    out = out.replace(new RegExp("(" + safe + ")","ig"), "<mark>$1</mark>");
+  }
+  return out;
 }
 function snippet(text,q) {
   if(!text) return "";
-  if(!q) return (text.slice(0,180) + (text.length>180 ? "…" : ""));
+  const tokens = rawTerms(q);
+  if(tokens.length === 0) return (text.slice(0,180) + (text.length>180 ? "…" : ""));
   const lower = text.toLowerCase();
-  const idx = lower.indexOf(q.toLowerCase());
+  let idx = -1;
+  let tokenLen = 0;
+  for(const t of tokens){
+    const at = lower.indexOf(t.toLowerCase());
+    if(at >= 0 && (idx < 0 || at < idx)){
+      idx = at;
+      tokenLen = t.length;
+    }
+  }
   if(idx < 0) return text.slice(0,180) + (text.length>180 ? "…" : "");
   const start = Math.max(0, idx - 80);
-  const end = Math.min(text.length, idx + q.length + 180);
+  const end = Math.min(text.length, idx + tokenLen + 180);
   const out = (start > 0 ? "…" : "") + text.slice(start,end) + (end < text.length ? "…" : "");
   return highlight(out,q);
 }
@@ -161,9 +200,9 @@ function currentHeading(){
   return "Archivio";
 }
 function applyFilter(items){
-  const q = searchEl.value.toLowerCase().trim();
+  const q = searchEl.value.trim();
   return items.filter(item => {
-    const matchSearch = !q || item.title.toLowerCase().includes(q) || item.text.toLowerCase().includes(q) || item.source_pdf.toLowerCase().includes(q);
+    const matchSearch = itemMatchesQuery(item, q);
     if(!matchSearch) return false;
     if(state.mode==="type") return item.type === state.type;
     if(state.mode==="category") return item.type === state.type && item.category === state.category;
