@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reindirizzamento ricetta</title>
+  <meta name="robots" content="noindex">
+  <script>
+    (function () {
+      var base = '/app-RL/';
+      var path = window.location.pathname;
+      if (path.indexOf(base + 'recipes/') === 0) {
+        var file = path.slice((base + 'recipes/').length);
+        if (file) {
+          window.location.replace(base + file + window.location.search + window.location.hash);
+          return;
+        }
+      }
+      window.location.replace(base);
+    }());
+  </script>
+</head>
+<body>
+  <p>Reindirizzamento in corso...</p>
+</body>
+</html>
